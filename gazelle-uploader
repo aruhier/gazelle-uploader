@@ -1,1 +1,6 @@
-gazelle_uploader/__init__.py
+#!/usr/bin/env python3
+
+from gazelle_uploader.__main__ import parse_args
+
+if __name__ == "__main__":
+    parse_args()
