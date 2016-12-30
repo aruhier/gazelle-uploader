@@ -5,16 +5,41 @@ import logging
 import sys
 
 from . import APP_NAME, VERSION
-from . import beets_api, gazelle_api
+from . import beets_api, gazelle_api, compare, utils
+
+
+def are_on_tracker(parsed_args, *args, **kwargs):
+    paths = parsed_args.releases
+    for p in paths:
+        for release in beets_api.get_tags_for_path(p):
+            torrent_groups = utils.search_torrents_from_beets_release(release)
+            matching_torrent = None
+            for torrent_group in torrent_groups:
+                matching_torrent = compare.get_matching_torrent_from_group(
+                    torrent_group, release
+                )
+                if matching_torrent:
+                    print(
+                        release.cur_artist, "-", release.cur_album,
+                        "already on the tracker"
+                    )
+                    break
+            if not matching_torrent:
+                print(
+                    release.cur_artist, "-", release.cur_album,
+                    "not found on tracker"
+                )
 
 
 def search_on_tracker(parsed_args, *args, **kwargs):
     artist = parsed_args.artist
     release = parsed_args.release
     result = gazelle_api.search_release(artist, release)
-    import pdb; pdb.set_trace()
 
-    print(result)
+    for r in result:
+        for torrent in r["torrent"]:
+            print(torrent["remasterRecordLabel"], torrent["remasterTitle"],
+                  torrent["media"], torrent["format"], torrent["encoding"])
 
 
 def list_releases(parsed_args, *args, **kwargs):
@@ -35,6 +60,13 @@ def parse_args():
     sp_list.add_argument("releases", metavar="release", type=str, nargs="*",
                          help="music data")
     sp_list.set_defaults(func=list_releases)
+
+    sp_list = sp_action.add_parser(
+        "check", help=("check if releases are already on the tracker")
+    )
+    sp_list.add_argument("releases", metavar="release", type=str, nargs="*",
+                         help="music data")
+    sp_list.set_defaults(func=are_on_tracker)
 
     sp_search = sp_action.add_parser(
         "search", help=("search releases on tracker")
