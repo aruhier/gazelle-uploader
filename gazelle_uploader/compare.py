@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from functools import reduce
+from . import gazelle_api
 
 
 def get_matching_torrent_from_group(torrent_group, local_release):
@@ -40,16 +41,10 @@ def compare_lossy_format(tracker_torrent, local_release):
         return False
 
     average_local_bitrate = get_average_bitrate(local_release)
-    if average_local_bitrate == 320000:
-        return tracker_torrent["encoding"] == "320"
-    elif average_local_bitrate == 256000:
-        return tracker_torrent["encoding"] == "256"
-    elif 224000 <= average_local_bitrate <= 320000:
-        return tracker_torrent["encoding"] == "V0 (VBR)"
-    elif average_local_bitrate == 196000:
-        return tracker_torrent["encoding"] == "196"
-    elif 160000 <= average_local_bitrate <= 224000:
-        return tracker_torrent["encoding"] == "V2 (VBR)"
+
+    return tracker_torrent["encoding"] == (
+        gazelle_api.numeric_bitrate_to_gazelle_bitrate(average_local_bitrate)
+    )
 
 
 def get_average_bitrate(local_release):

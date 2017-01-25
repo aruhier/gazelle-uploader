@@ -8,11 +8,26 @@ from . import APP_NAME, VERSION
 from . import beets_api, gazelle_api, compare, utils
 
 
-def are_on_tracker(parsed_args, *args, **kwargs):
+def upload(parsed_args, *args, **kwargs):
+    """
+    Only for testing, for the moment, as it does handle the creation of any
+    torrent file
+    """
     paths = parsed_args.releases
+    api = gazelle_api.configure_api_and_connect()
     for p in paths:
         for release in beets_api.get_tags_for_path(p):
-            torrent_groups = utils.search_torrents_from_beets_release(release)
+            gazelle_api.upload(api, release.cur_artist, release, None, None)
+
+
+def are_on_tracker(parsed_args, *args, **kwargs):
+    paths = parsed_args.releases
+    api = gazelle_api.configure_api_and_connect()
+    for p in paths:
+        for release in beets_api.get_tags_for_path(p):
+            torrent_groups = utils.search_torrents_from_beets_release(
+                api, release
+            )
             matching_torrent = None
             for torrent_group in torrent_groups:
                 matching_torrent = compare.get_matching_torrent_from_group(
@@ -23,6 +38,8 @@ def are_on_tracker(parsed_args, *args, **kwargs):
                         release.cur_artist, "-", release.cur_album,
                         "already on the tracker"
                     )
+                    # to remove
+                    gazelle_api.upload(api, "k.flay", release, None, None)
                     break
             if not matching_torrent:
                 print(
@@ -34,7 +51,8 @@ def are_on_tracker(parsed_args, *args, **kwargs):
 def search_on_tracker(parsed_args, *args, **kwargs):
     artist = parsed_args.artist
     release = parsed_args.release
-    result = gazelle_api.search_release(artist, release)
+    api = gazelle_api.configure_api_and_connect()
+    result = gazelle_api.search_release(api, artist, release)
 
     for r in result:
         for torrent in r["torrent"]:
@@ -67,6 +85,13 @@ def parse_args():
     sp_list.add_argument("releases", metavar="release", type=str, nargs="*",
                          help="music data")
     sp_list.set_defaults(func=are_on_tracker)
+
+    sp_upload = sp_action.add_parser(
+        "upload", help=("upload releases on the tracker")
+    )
+    sp_upload.add_argument("releases", metavar="release", type=str, nargs="*",
+                           help="music data")
+    sp_upload.set_defaults(func=upload)
 
     sp_search = sp_action.add_parser(
         "search", help=("search releases on tracker")
