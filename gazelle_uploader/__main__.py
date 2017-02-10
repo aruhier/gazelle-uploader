@@ -5,66 +5,12 @@ import logging
 import sys
 
 from . import APP_NAME, VERSION
-from . import beets_api, gazelle_api, compare, utils
+from . import beets_api, gazelle_api
+from .decorators import connect_api, for_each_path_from_args
 
 
-def upload(parsed_args, *args, **kwargs):
-    """
-    Only for testing, for the moment, as it does handle the creation of any
-    torrent file
-    """
-    paths = parsed_args.releases
-    api = gazelle_api.configure_api_and_connect()
-    for p in paths:
-        for release in beets_api.get_tags_for_path(p):
-            gazelle_api.upload(api, release.cur_artist, release, None, None)
-
-
-def are_on_tracker(parsed_args, *args, **kwargs):
-    paths = parsed_args.releases
-    api = gazelle_api.configure_api_and_connect()
-    for p in paths:
-        for release in beets_api.get_tags_for_path(p):
-            torrent_groups = utils.search_torrents_from_beets_release(
-                api, release
-            )
-            matching_torrent = None
-            for torrent_group in torrent_groups:
-                matching_torrent = compare.get_matching_torrent_from_group(
-                    torrent_group, release
-                )
-                if matching_torrent:
-                    print(
-                        release.cur_artist, "-", release.cur_album,
-                        "already on the tracker"
-                    )
-                    # to remove
-                    gazelle_api.upload(api, "k.flay", release, None, None)
-                    break
-            if not matching_torrent:
-                print(
-                    release.cur_artist, "-", release.cur_album,
-                    "not found on tracker"
-                )
-
-
-def search_on_tracker(parsed_args, *args, **kwargs):
-    artist = parsed_args.artist
-    release = parsed_args.release
-    api = gazelle_api.configure_api_and_connect()
-    result = gazelle_api.search_release(api, artist, release)
-
-    for r in result:
-        for torrent in r["torrent"]:
-            print(torrent["remasterRecordLabel"], torrent["remasterTitle"],
-                  torrent["media"], torrent["format"], torrent["encoding"])
-
-
-def list_releases(parsed_args, *args, **kwargs):
-    paths = parsed_args.releases
-    for p in paths:
-        for t in beets_api.get_tags_for_path(p):
-            print(t.cur_artist, "-", t.cur_album)
+if __name__ == "__main__":
+    parse_args()
 
 
 def parse_args():
@@ -79,12 +25,12 @@ def parse_args():
                          help="music data")
     sp_list.set_defaults(func=list_releases)
 
-    sp_list = sp_action.add_parser(
+    sp_check = sp_action.add_parser(
         "check", help=("check if releases are already on the tracker")
     )
-    sp_list.add_argument("releases", metavar="release", type=str, nargs="*",
-                         help="music data")
-    sp_list.set_defaults(func=are_on_tracker)
+    sp_check.add_argument("releases", metavar="release", type=str, nargs="*",
+                          help="music data")
+    sp_check.set_defaults(func=are_on_tracker)
 
     sp_upload = sp_action.add_parser(
         "upload", help=("upload releases on the tracker")
@@ -125,5 +71,51 @@ def parse_args():
         sys.exit(1)
 
 
-if __name__ == "__main__":
-    parse_args()
+@connect_api
+@for_each_path_from_args
+def list_releases(parsed_args, *args, **kwargs):
+    api, path = kwargs["api"], kwargs["path"]
+    for t in beets_api.get_tags_for_path(path):
+        print(t.cur_artist, "-", t.cur_album)
+
+
+@connect_api
+@for_each_path_from_args
+def are_on_tracker(parsed_args, *args, **kwargs):
+    api, path = kwargs["api"], kwargs["path"]
+    for release in beets_api.get_tags_for_path(path):
+        _print_release_status_on_tracker(release, api)
+
+
+def _print_release_status_on_tracker(release, api):
+    msg_status = (
+        "already on the tracker"
+        if gazelle_api.search_exact_beets_release(release, api)
+        else "not found on the tracker"
+    )
+    print(release.cur_artist, "-", release.cur_album, msg_status)
+
+
+@connect_api
+def search_on_tracker(parsed_args, *args, **kwargs):
+    api = kwargs["api"]
+    artist = parsed_args.artist
+    release = parsed_args.release
+    result = gazelle_api.search_release(api, artist, release)
+
+    for r in result:
+        for torrent in r["torrent"]:
+            print(torrent["remasterRecordLabel"], torrent["remasterTitle"],
+                  torrent["media"], torrent["format"], torrent["encoding"])
+
+
+@connect_api
+@for_each_path_from_args
+def upload(parsed_args, *args, **kwargs):
+    """
+    Only for testing, for the moment, as it does handle the creation of any
+    torrent file
+    """
+    api, path = kwargs["api"], kwargs["path"]
+    for release in beets_api.get_tags_for_path(path):
+        gazelle_api.upload(api, release.cur_artist, release, None, None)

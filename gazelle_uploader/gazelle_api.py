@@ -5,6 +5,7 @@ import logging
 import os
 
 from . import CONFIG, APP_NAME
+from . import compare, utils
 
 
 LOGGER = logging.getLogger(APP_NAME)
@@ -91,6 +92,20 @@ TAGS_SEARCH_MAP = {
 }
 
 
+def search_exact_beets_release(api, beets_release):
+    torrent_groups = utils.search_torrents_from_beets_release(
+        api, beets_release
+    )
+    matching_torrent = None
+    for torrent_group in torrent_groups:
+        matching_torrent = compare.get_matching_torrent_from_group(
+            torrent_group, beets_release
+        )
+        if matching_torrent:
+            break
+    return matching_torrent
+
+
 def search_release(api, artist, release):
     artist_data = get_artist(api, artist)
     for tgroup in artist_data.get("torrentgroup", []):
@@ -132,9 +147,6 @@ def upload(api, artists, release, torrent_path, description=None,
     params["artists[]"] = artists
     if description:
         params["release_desc"] = description
-
-    # XXX: TO REMOVE
-    torrent_path = "/tmp/test.py"
 
     files = {}
     opened_logfiles = []
