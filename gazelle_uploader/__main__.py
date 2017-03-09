@@ -2,10 +2,11 @@
 
 import argparse
 import logging
+import os
 import sys
 
-from . import APP_NAME, VERSION
-from . import beets_api, gazelle_api
+from . import APP_NAME, VERSION, beets_api, gazelle_api
+from .utils import find_logfile_from, gen_torrent_for
 from .decorators import connect_api, for_each_path_from_args
 
 
@@ -35,6 +36,9 @@ def parse_args():
     sp_upload = sp_action.add_parser(
         "upload", help=("upload releases on the tracker")
     )
+    sp_upload.add_argument('-o', '--outdir',
+                           help="directory to store the generated torrents",
+                           dest="output_dir", default=".", required=False)
     sp_upload.add_argument("releases", metavar="release", type=str, nargs="*",
                            help="music data")
     sp_upload.set_defaults(func=upload)
@@ -84,14 +88,13 @@ def list_releases(parsed_args, *args, **kwargs):
 def are_on_tracker(parsed_args, *args, **kwargs):
     api, path = kwargs["api"], kwargs["path"]
     for release in beets_api.get_tags_for_path(path):
-        _print_release_status_on_tracker(release, api)
+        uploaded = bool(gazelle_api.search_exact_beets_release(release, api))
+        _print_release_status_on_tracker(release, uploaded)
 
 
-def _print_release_status_on_tracker(release, api):
+def _print_release_status_on_tracker(release, uploaded):
     msg_status = (
-        "already on the tracker"
-        if gazelle_api.search_exact_beets_release(release, api)
-        else "not found on the tracker"
+        "already on the tracker" if uploaded else "not found on the tracker"
     )
     print(release.cur_artist, "-", release.cur_album, msg_status)
 
@@ -117,5 +120,26 @@ def upload(parsed_args, *args, **kwargs):
     torrent file
     """
     api, path = kwargs["api"], kwargs["path"]
+    output_dir = parsed_args.output_dir
+
     for release in beets_api.get_tags_for_path(path):
-        gazelle_api.upload(api, release.cur_artist, release, None, None)
+        already_uploaded = bool(
+            gazelle_api.search_exact_beets_release(release, api)
+        )
+        _print_release_status_on_tracker(release, already_uploaded)
+        if already_uploaded:
+            continue
+
+        try:
+            logfile_paths = [find_logfile_from(release.path)]
+        except FileNotFoundError:
+            logfile_paths = []
+
+        torrent_file = gen_torrent_for(release.path, output_dir)
+        gazelle_api.upload(
+            api, release.cur_artist, release, torrent_file,
+            logfile_paths=logfile_paths
+        )
+        print(
+            "{} uploaded, torrent file: {}".format(release.path, torrent_file)
+        )
