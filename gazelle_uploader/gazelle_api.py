@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import gazelleapi
 from gazelleapi import GazelleAPI
 import logging
 import os
@@ -107,7 +108,10 @@ def search_exact_beets_release(api, beets_release):
 
 
 def search_release(api, artist, release):
-    artist_data = get_artist(api, artist)
+    try:
+        artist_data = get_artist(api, artist)
+    except gazelleapi.gazelleapi.RequestException:
+        return
     for tgroup in artist_data.get("torrentgroup", []):
         if tgroup["groupName"] == release:
             yield tgroup
@@ -139,14 +143,17 @@ def upload(api, artists, release, torrent_path, description=None,
     :type logfiles_paths: list
     """
     url = "{}/{}.php".format(api.site_url, "upload")
-    params = {}
-    if api.authkey:
-        params['authkey'] = api.authkey
-
     params = _get_release_infos_to_upload(release)
+
+    params["submit"] = "true"
+    if api.authkey:
+        params['auth'] = api.authkey
     params["artists[]"] = artists
-    if description:
-        params["release_desc"] = description
+    # TODO: link with artists
+    params["importance[]"] = "1"
+    params["album_desc"] = (
+        description if description else _build_descr_from_titles(release)
+    )
 
     files = {}
     opened_logfiles = []
@@ -159,11 +166,13 @@ def upload(api, artists, release, torrent_path, description=None,
             for l in logfiles_paths:
                 files["logfiles[]"].append(open(l, "rb"))
             if not len(files["logfiles[]"]):
+                files.pop("logfiles[]")
                 if release.items[0].format == "FLAC":
                     if not _confirm_no_logfile_not_web_flac(params):
                         return
 
             if _confirm_infos_before_upload(params, files):
+                import pdb; pdb.set_trace()
                 return api.session.post(url, data=params, files=files)
     finally:
         for l in opened_logfiles:
@@ -172,6 +181,17 @@ def upload(api, artists, release, torrent_path, description=None,
             except Exception as e:
                 LOGGER.error("Cannot close file")
                 LOGGER.error(e)
+
+
+def _build_descr_from_titles(release):
+    description = []
+    for i in release.items:
+        description.append("{}{} {} {}".format(
+            str(i.disc) + "-" if i.disctotal > 0 else "",
+            i.track, i.title, "{:.0f}:{:02.0f}".format(*divmod(i.length, 60))
+        ))
+
+    return "\n".join(description)
 
 
 def _get_release_infos_to_upload(release):
@@ -193,7 +213,7 @@ def _get_release_infos_to_upload(release):
         uploading_datas = _fill_infos_remaster(first_item, uploading_datas)
 
     uploading_datas["media"] = (
-        MEDIA_SEARCH_MAP[first_item["media"].lower()]
+        MEDIA_SEARCH_MAP.get(first_item["media"].lower(), "CD")
     )
 
     return uploading_datas
@@ -203,14 +223,14 @@ def _fill_infos_format(release_item, uploading_datas):
     release_format = release_item.format
     if release_format == "MP3":
         uploading_datas["format"] = "MP3"
-        uploading_datas["encoding"] = str(
+        uploading_datas["bitrate"] = str(
             numeric_bitrate_to_gazelle_bitrate(release_item.bitrate)
         )
     elif release_format == "FLAC":
         uploading_datas["format"] = (
             "FLAC 24bit" if release_item.bitdepth == 24 else "FLAC"
         )
-        uploading_datas["encoding"] = "Lossless"
+        uploading_datas["bitrate"] = "Lossless"
 
     return uploading_datas
 
@@ -303,7 +323,7 @@ def _show_upload_details(params, files):
     print_param_or_default("Tags", "tags")
     print()
     print_param_or_default("Format", "format")
-    print_param_or_default("Bitrate", "encoding")
+    print_param_or_default("Bitrate", "bitrate")
     print()
     if params.get("remaster", 0) == 1:
         print("Remaster: Yes")
@@ -316,17 +336,18 @@ def _show_upload_details(params, files):
         print("{}: {}".format("Logfile: ", l.name))
     print_files_param_file_path("Torrent", "file_input")
     print()
-    print_param_or_default("Description", "release_desc")
+    print_param_or_default("Description", "album_desc")
 
 
 def numeric_bitrate_to_gazelle_bitrate(num_bitrate):
-    if num_bitrate == 320000:
+    bitrate_in_kb = int(num_bitrate/1000)
+    if bitrate_in_kb == 320:
         return "320"
-    elif num_bitrate == 256000:
+    elif bitrate_in_kb == 256:
         return "256"
-    elif 224000 <= num_bitrate <= 320000:
+    elif 224 < bitrate_in_kb <= 320:
         return "V0 (VBR)"
-    elif num_bitrate == 196000:
+    elif bitrate_in_kb == 196:
         return "196"
-    elif 160000 <= num_bitrate <= 224000:
+    elif 160 <= bitrate_in_kb <= 224:
         return "V2 (VBR)"

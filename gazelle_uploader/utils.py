@@ -15,22 +15,19 @@ def search_torrents_from_beets_release(api, beets_release):
     return gazelle_api.search_release(api, artist, album)
 
 
-def gen_torrent_for(path, output):
-    subprocess.check_output(
-        [
-            "mktorrent", path,
-            "-a", CONFIG["announce"],
-            "-p",
-            "-o", output
-        ], stderr=subprocess.STDOUT
+def gen_torrent_for(path, output="./"):
+    torrent_path = os.path.join(
+        output, os.path.normpath(path).split(os.sep)[-1] + ".torrent"
     )
 
-    if os.path.isdir(output):
-        return os.path.join(
-            output, os.path.normpath(path).split()[-1] + ".torrent"
-        )
-    else:
-        return output
+    cmd = [
+        "mktorrent", path,
+        "-a", CONFIG["announce"],
+        "-p",
+        "-o", torrent_path,
+    ]
+    subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+    return torrent_path
 
 
 def find_logfile_from(path):
