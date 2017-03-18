@@ -1,0 +1,54 @@
+gazelle-uploader
+================
+
+Automatically upload a release on a Gazelle based tracker, using beets to get
+informations from MusicBrainz.
+
+
+Installation
+------------
+
+A pip package will be uploaded when all important features will be implemented.
+For now, it can be installed locally by doing `./setup.py install`.
+
+
+Configuration
+-------------
+
+Create a configuration file in `~/.config/gazelle-uploader/config.yml`:
+
+```
+login: LoginOnTracker
+password: passphrase
+site: "https://tracker.com"
+announce: "https://tracker.com/,,,/announce"
+```
+
+Usage
+-----
+
+Run the application by calling `gazelle-uploader`:
+
+```
+usage: gazelle-uploader [-h] [-d] [--version] {list,check,upload,search} ...
+
+Upload music on a gazelle based tracker
+
+positional arguments:
+  {list,check,upload,search}
+    list                list releases
+    check               check if releases are already on the tracker
+    upload              upload releases on the tracker
+    search              search releases on tracker
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -d, --debug           set the debug level
+  --version             show program's version number and exit
+```
+
+License
+-------
+
+Tool under the BSD license. Do not hesitate to report bugs, ask me some
+questions or do some pull request if you want to!
