@@ -27,7 +27,7 @@ setup(
 
     keywords="torrent",
     packages=["gazelle_uploader", ],
-    install_requires=["argparse", "bencodepy", "gazelleapi"],
+    install_requires=["argparse", "bencodepy", "gazelleapi", "python-editor"],
     setup_requires=['pytest-runner', ],
     tests_require=['pytest', 'pytest-cov', "pytest-mock", "pytest-xdist"],
 )

@@ -141,7 +141,6 @@ def upload(parsed_args, *args, **kwargs):
             api, release.cur_artist, release, torrent_file,
             logfiles_paths=logfiles_paths
         )
-        import pdb; pdb.set_trace()
         print(
             "{} uploaded, torrent file: {}".format(release_path, torrent_file)
         )

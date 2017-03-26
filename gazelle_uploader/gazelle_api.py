@@ -2,6 +2,8 @@
 
 import gazelleapi
 from gazelleapi import GazelleAPI
+import editor
+import json
 import logging
 import os
 
@@ -171,8 +173,10 @@ def upload(api, artists, release, torrent_path, description=None,
                     if not _confirm_no_logfile_not_web_flac(params):
                         return
 
-            if _confirm_infos_before_upload(params, files):
-                import pdb; pdb.set_trace()
+            confirm, params = _confirm_or_edit_infos_before_upload(
+                params, files
+            )
+            if confirm:
                 return api.session.post(url, data=params, files=files)
     finally:
         for l in opened_logfiles:
@@ -286,7 +290,7 @@ def _confirm_no_logfile_not_web_flac(params):
         return _confirm_no_logfile_not_web_flac(params)
 
 
-def _confirm_infos_before_upload(params, files):
+def _confirm_or_edit_infos_before_upload(params, files):
     """
     Show infos about the current upload and confirm
 
@@ -297,10 +301,25 @@ def _confirm_infos_before_upload(params, files):
     print()
 
     default = "y"
-    choice = input("Confirm the upload [Y/n]: ") or default
+    choice = input("Confirm the upload [Y/e (edit)/n]: ") or default
     print()
 
-    return choice in ("y", "yes")
+    if choice.lower() in ("e", "edit"):
+        params_json = editor.edit(
+            contents=json.dumps(
+                params, sort_keys=True, indent=4, separators=(",", ": ")
+            ).encode()
+        )
+        try:
+            params = json.loads(params_json)
+        except Exception as e:
+            LOGGER.error("Error when parsing edited info: {}".format(e))
+        return _confirm_or_edit_infos_before_upload(params, files)
+
+    return (
+        choice.lower() in ("y", "yes"),
+        params
+    )
 
 
 def _show_upload_details(params, files):
